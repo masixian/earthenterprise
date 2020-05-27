@@ -1,5 +1,6 @@
 /*
  * Copyright 2017 Google Inc.
+ * Copyright 2020 The Open GEE Contributors 
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -86,7 +87,7 @@ class AssetVersionImplD : public virtual AssetVersionImpl
 
   void AddInputAssetRefs(const std::vector<SharedString> &inputs_);
   AssetDefs::State StateByInputs(bool *blockersAreOffline = nullptr,
-                                 uint32 *numWaiting = nullptr) const;
+                                 std::uint32_t *numWaiting = nullptr) const;
   template<bool propagate = true>
   void SetState(AssetDefs::State newstate, const std::shared_ptr<StateChangeNotifier> = nullptr);
   void SetProgress(double newprogress);
@@ -99,7 +100,7 @@ class AssetVersionImplD : public virtual AssetVersionImpl
   virtual void HandleInputStateChange(NotifyStates, const std::shared_ptr<StateChangeNotifier>) const = 0;
   inline bool BlockedByOfflineInputs(const InputAndChildStateData & stateData) const;
   virtual bool OfflineInputsBreakMe(void) const { return false; }
-  virtual uint32 GetChildrenWaitingFor() const { return 0; }
+  virtual std::uint32_t GetChildrenWaitingFor() const { return 0; }
  public:
 
   bool NeedComputeState(void) const {
@@ -161,7 +162,7 @@ class AssetVersionImplD : public virtual AssetVersionImpl
   mutable InputVersionHolder* verholder;
 
  protected:
-  mutable uint32 numInputsWaitingFor;
+  mutable std::uint32_t numInputsWaitingFor;
 };
 
 
@@ -206,6 +207,7 @@ class LeafAssetVersionImplD : public virtual LeafAssetVersionImpl,
   virtual AssetDefs::State OnStateChange(AssetDefs::State newstate,
                                          AssetDefs::State oldstate) override;
   virtual AssetDefs::State CalcStateByInputsAndChildren(const InputAndChildStateData &) const override;
+  virtual bool InputStatesAffectMyState(AssetDefs::State stateByInputs, bool blockedByOfflineInputs) const override;
 };
 
 
@@ -213,7 +215,7 @@ class CompositeAssetVersionImplD : public virtual CompositeAssetVersionImpl,
                                    public AssetVersionImplD
 {
  protected:
-  mutable uint32 numChildrenWaitingFor;
+  mutable std::uint32_t numChildrenWaitingFor;
     
   // since AssetVersionImpl and CompositeAssetVersionImpl are virtual base
   // classes my derived classes will initialize it directly
@@ -233,7 +235,7 @@ class CompositeAssetVersionImplD : public virtual CompositeAssetVersionImpl,
   virtual void HandleInputStateChange(NotifyStates, const std::shared_ptr<StateChangeNotifier>) const;
   virtual void DelayedBuildChildren(void);
   virtual bool CompositeStateCaresAboutInputsToo(void) const { return false; }
-  virtual uint32 GetChildrenWaitingFor() const override { return numChildrenWaitingFor; }
+  virtual std::uint32_t GetChildrenWaitingFor() const override { return numChildrenWaitingFor; }
 
   void AddChild(MutableAssetVersionD &child);
   void AddChildren(std::vector<MutableAssetVersionD> &children);
@@ -247,6 +249,7 @@ class CompositeAssetVersionImplD : public virtual CompositeAssetVersionImpl,
   virtual AssetDefs::State OnStateChange(AssetDefs::State newstate,
                                          AssetDefs::State oldstate) override;
   virtual bool RecalcState(WaitingFor &) const override;
+  virtual bool InputStatesAffectMyState(AssetDefs::State stateByInputs, bool blockedByOfflineInputs) const override;
 };
 
 #endif /* __AssetVersionD_h */

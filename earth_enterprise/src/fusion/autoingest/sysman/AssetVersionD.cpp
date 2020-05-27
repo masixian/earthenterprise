@@ -1,4 +1,5 @@
 // Copyright 2017 Google Inc.
+// Copyright 2020 The Open GEE Contributors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -192,17 +193,17 @@ AssetVersionImplD::AddInputAssetRefs(const std::vector<SharedString> &inputs_)
 
 AssetDefs::State
 AssetVersionImplD::StateByInputs(bool *blockersAreOffline,
-                                 uint32 *numWaiting) const
+                                 std::uint32_t *numWaiting) const
 {
   // load my input versions (only if they aren't already loaded)
   InputVersionGuard guard(this);
 
 
   // find out how my inputs are doing
-  uint numinputs = inputs.size();
-  uint numgood = 0;
-  uint numblocking = 0;
-  uint numoffline = 0;
+  unsigned int numinputs = inputs.size();
+  unsigned int numgood = 0;
+  unsigned int numblocking = 0;
+  unsigned int numoffline = 0;
   for (std::vector<AssetVersion>::const_iterator i =
          guard->inputvers.begin();
        i != guard->inputvers.end(); ++i) {
@@ -725,14 +726,12 @@ LeafAssetVersionImplD::ComputeState(void) const
   return newstate;
 }
 
-AssetDefs::State
-LeafAssetVersionImplD::CalcStateByInputsAndChildren(const InputAndChildStateData & stateData) const {
-  this->numInputsWaitingFor = stateData.waitingFor.inputs;
-  AssetDefs::State newstate = state;
+bool LeafAssetVersionImplD::InputStatesAffectMyState(AssetDefs::State stateByInputs, bool blockedByOfflineInputs) const {
+  bool InputStatesAffectMyState = false;
   if (!AssetDefs::Ready(state)) {
     // I'm currently not ready, so take whatever my inputs say
-    newstate = stateData.stateByInputs;
-  } else if (stateData.stateByInputs != AssetDefs::Queued) {
+    InputStatesAffectMyState = true;
+  } else if (stateByInputs != AssetDefs::Queued) {
     // My inputs have regressed
     // Let's see if I should regress too
 
@@ -740,32 +739,41 @@ LeafAssetVersionImplD::CalcStateByInputsAndChildren(const InputAndChildStateData
       // I'm in the middle of building myself
       // revert my state to wait/block on my inputs
       // OnStateChange will pick up this revert and stop my running task
-      newstate = stateData.stateByInputs;
+      InputStatesAffectMyState = true;
     } else {
       // my task has already finished
-      if (BlockedByOfflineInputs(stateData)) {
+      if (blockedByOfflineInputs) {
         // If the only reason my inputs have reverted is because
         // some of them have gone offline, that's usually OK and
         // I don't need to revert my state.
         // Check to see if I care about my inputs going offline
         if (OfflineInputsBreakMe()) {
           // I care, revert my state too.
-          newstate = stateData.stateByInputs;
+          InputStatesAffectMyState = true;
         } else {
           // I don't care, so leave my state alone.
-          newstate = state;
         }
       } else {
         // My inputs have regresseed for some reason other than some
         // of them going offline.
         // revert my state
-        newstate = stateData.stateByInputs;
+        InputStatesAffectMyState = true;
       }
     }
   } else {
     // nothing to do
     // my current state is correct based on what my task has told me so far
   }
+  
+  return InputStatesAffectMyState;
+}
+
+AssetDefs::State
+LeafAssetVersionImplD::CalcStateByInputsAndChildren(const InputAndChildStateData & stateData) const {
+  this->numInputsWaitingFor = stateData.waitingFor.inputs;
+  AssetDefs::State newstate = state;
+  if (InputStatesAffectMyState(stateData.stateByInputs, BlockedByOfflineInputs(stateData)))
+    newstate = stateData.stateByInputs;
 
   return newstate;
 }
@@ -1114,11 +1122,11 @@ CompositeAssetVersionImplD::ComputeState(void) const
 
 
   // find out how my children are doing
-  uint numkids = children.size();
-  uint numgood = 0;
-  uint numblocking = 0;
-  uint numinprog = 0;
-  uint numfailed = 0;
+  unsigned int numkids = children.size();
+  unsigned int numgood = 0;
+  unsigned int numblocking = 0;
+  unsigned int numinprog = 0;
+  unsigned int numfailed = 0;
   for (const auto &c : children) {
     AssetVersion child(c);
     if (child) {
@@ -1160,30 +1168,38 @@ CompositeAssetVersionImplD::ComputeState(void) const
   return stateByChildren;
 }
 
-AssetDefs::State
-CompositeAssetVersionImplD:: CalcStateByInputsAndChildren(const InputAndChildStateData & stateData) const {
-  this->numInputsWaitingFor = stateData.waitingFor.inputs;
-  this->numChildrenWaitingFor = stateData.waitingFor.children;
-
+bool CompositeAssetVersionImplD::InputStatesAffectMyState(AssetDefs::State stateByInputs, bool blockedByOfflineInputs) const {
   // Undecided composites take their state from their inputs
+  bool InputStatesAffectMyState = false;
   if (children.empty()) {
-    return stateData.stateByInputs;
+    InputStatesAffectMyState = true;
   }
 
   // some composite assets (namely Database) care about the state of their
   // inputs, for all others all that matters is the state of their children
   if (CompositeStateCaresAboutInputsToo()) {
-    if (stateData.stateByInputs != AssetDefs::Queued) {
+    if (stateByInputs != AssetDefs::Queued) {
       // something is wrong with my inputs (or they're not done yet)
-      if (BlockedByOfflineInputs(stateData)) {
+      if (blockedByOfflineInputs) {
         if (OfflineInputsBreakMe()) {
-          return stateData.stateByInputs;
+          InputStatesAffectMyState = true;
         }
       } else {
-        return stateData.stateByInputs;
+        InputStatesAffectMyState = true;
       }
     }
   }
+
+  return InputStatesAffectMyState;
+}
+
+AssetDefs::State
+CompositeAssetVersionImplD::CalcStateByInputsAndChildren(const InputAndChildStateData & stateData) const {
+  this->numInputsWaitingFor = stateData.waitingFor.inputs;
+  this->numChildrenWaitingFor = stateData.waitingFor.children;
+
+  if (InputStatesAffectMyState(stateData.stateByInputs, BlockedByOfflineInputs(stateData)))
+    return stateData.stateByInputs;
 
   return stateData.stateByChildren;
 }

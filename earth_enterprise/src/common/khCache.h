@@ -1,5 +1,6 @@
 /*
  * Copyright 2017 Google Inc.
+ * Copyright 2020 The Open GEE Contributors 
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,16 +21,12 @@
 
 #include <cctype>
 #include <chrono>
+#include <cstdint>
 #include <map>
 #include <vector>
 
-#include "khTypes.h"
 #include "CacheSizeCalculations.h"
 #include "notify.h"
-
-#ifdef SUPPORT_VERBOSE
-#include <notify.h>
-#endif
 
 /******************************************************************************
  ***  Simple cache of refcounted objects
@@ -65,7 +62,7 @@ class khCacheItem {
   khCacheItem *prev;
   Key   key;
   Value val;
-  uint64 size;
+  std::uint64_t size;
   khCacheItem(const Key &key_, const Value &val_)
       : next(0), prev(0), key(key_), val(val_), size(0) { }
 };
@@ -80,15 +77,16 @@ class khCache {
   MapType map;
   Item *head;
   Item *tail;
-  const uint targetMax;
+  static const khNotifyLevel PURGE_TIME_NOTIFY_LEVEL = NFY_DEBUG;
+  const unsigned int targetMax;
   const std::string name;
 #ifdef SUPPORT_VERBOSE
   bool verbose;
 #endif
-  uint64 cacheMemoryUse;
+  std::uint64_t cacheMemoryUse;
   bool limitCacheMemory;
-  uint64 maxCacheMemory;
-  const uint64 khCacheItemSize = sizeof(khCacheItem<Key, Value>);
+  std::uint64_t maxCacheMemory;
+  const std::uint64_t khCacheItemSize = sizeof(khCacheItem<Key, Value>);
   bool InList(Item *item) {
     Item *tmp = head;
     while (tmp) {
@@ -175,9 +173,9 @@ class khCache {
   typedef typename MapType::size_type size_type;
   size_type size(void) const { return map.size(); }
   size_type capacity(void) const { return targetMax; }
-  uint64 getMemoryUse(void) const { return cacheMemoryUse; }
+  std::uint64_t getMemoryUse(void) const { return cacheMemoryUse; }
 
-  khCache(uint targetMax_, std::string name_
+  khCache(unsigned int targetMax_, std::string name_
 #ifdef SUPPORT_VERBOSE
           , bool verbose_ = false
 #endif
@@ -196,7 +194,7 @@ class khCache {
     clear();
   }
   // returns the size of a cache item if it exists
-  uint64 getCacheItemSize(const Key &key) {
+  std::uint64_t getCacheItemSize(const Key &key) {
     Item *item = FindItem(key);
     if (item) {
       return item->size;
@@ -204,19 +202,19 @@ class khCache {
     return 0;
   }
   // calculates the current size of a cache item
-  uint64 calculateCacheItemSize(Item *item) {
+  std::uint64_t calculateCacheItemSize(Item *item) {
     return khCacheItemSize + GetHeapUsage(item->key) + GetHeapUsage(item->val);
   }
   // sets a given cache item's size to its current size and updates the total cache memory in use
   void updateCacheItemSize(const Key &key) {
     Item *item = FindItem(key);
     if ( item ) {
-      uint64 size = calculateCacheItemSize(item);
+      std::uint64_t size = calculateCacheItemSize(item);
       cacheMemoryUse = (cacheMemoryUse - item->size) + size;
       item->size = size;
     }
   }
-  void setCacheMemoryLimit(bool enabled, uint64 maxMemory) {
+  void setCacheMemoryLimit(bool enabled, std::uint64_t maxMemory) {
     limitCacheMemory = enabled;
     maxCacheMemory = maxMemory;
   }
@@ -328,14 +326,15 @@ class khCache {
     CheckListInvariant();
     TimePoint finishTime = std::chrono::high_resolution_clock::now();
     // Log when the cache size is exceeded
-    if (TooMuchMemory() || TooManyObjects()) {
+    if (getNotifyLevel() >= PURGE_TIME_NOTIFY_LEVEL &&
+        (TooMuchMemory() || TooManyObjects())) {
       LogPruneTime(startTime, finishTime);
     }
   }
  private:
   void LogPruneTime(TimePoint startTime, TimePoint finishTime) {
     std::chrono::duration<double> elapsedTime = finishTime - startTime;
-    uint64 configuredSize, actualSize;
+    std::uint64_t configuredSize, actualSize;
     std::string units;
     if (limitCacheMemory) {
       configuredSize = maxCacheMemory;
@@ -347,7 +346,7 @@ class khCache {
       actualSize = map.size();
       units = "items";
     }
-    notify(NFY_INFO, "%s cache size exceeded. Configured size: %lu %s, Actual size: %lu %s, Prune time: %f seconds",
+    notify(PURGE_TIME_NOTIFY_LEVEL, "%s cache size exceeded. Configured size: %lu %s, Actual size: %lu %s, Prune time: %f seconds",
            name.c_str(), configuredSize, units.c_str(), actualSize, units.c_str(), elapsedTime.count());
   }
 

@@ -1,4 +1,5 @@
 // Copyright 2017 Google Inc.
+// Copyright 2020 The Open GEE Contributors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -593,7 +594,7 @@ khAssetManager::SubmitTask(const SharedString &verref, const TaskDef &taskdef,
   // assert that we're already locked
   assert(!mutex.TryLock());
 
-  uint32 taskid = NextTaskId::Get();
+  std::uint32_t taskid = NextTaskId::Get();
   MutableAssetVersionD(verref)->taskid = taskid;
 
   SubmitTaskMsg submitMsg(verref,
@@ -740,7 +741,7 @@ khAssetManager::CancelVersion(const std::string &verref)
 {
   assert(!mutex.TryLock());
   notify(NFY_INFO, "CancelVersion %s", verref.c_str());
-  MutableAssetVersionD(verref)->Cancel();
+  ::CancelVersion(verref);
 }
 
 void
@@ -983,7 +984,7 @@ khAssetManager::MercatorMapDatabaseModify(const MapDatabaseEditRequest &req) {
 
 void
 khAssetManager::GetCurrTasks(const std::string &dummy, TaskLists &ret) {
-  uint mutexWaitTime = MiscConfig::Instance().MutexTimedWaitSec;
+  unsigned int mutexWaitTime = MiscConfig::Instance().MutexTimedWaitSec;
 
   // Passing in a timeout will throw khTimedMutexException if mutexWaitTime is
   // exceeded trying to acquire the lock. 

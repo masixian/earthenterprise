@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 The Open GEE Contributors
+ * Copyright 2020 The Open GEE Contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,14 +21,15 @@
 #include "fusion/autoingest/sysman/.idl/TaskStorage.h"
 #include "MiscConfig.h"
 
-void RebuildVersion(const SharedString & ref, bool graphOps = MiscConfig::Instance().GraphOperations);
-void HandleTaskProgress(const TaskProgressMsg & msg, bool graphOps = MiscConfig::Instance().GraphOperations);
-void HandleTaskDone(const TaskDoneMsg & msg, bool graphOps = MiscConfig::Instance().GraphOperations);
+void RebuildVersion(const SharedString & ref, MiscConfig::GraphOpsType graphOps = MiscConfig::Instance().GraphOperations);
+void CancelVersion(const SharedString & ref, MiscConfig::GraphOpsType graphOps = MiscConfig::Instance().GraphOperations);
+void HandleTaskProgress(const TaskProgressMsg & msg, MiscConfig::GraphOpsType graphOps = MiscConfig::Instance().GraphOperations);
+void HandleTaskDone(const TaskDoneMsg & msg, MiscConfig::GraphOpsType graphOps = MiscConfig::Instance().GraphOperations);
 void HandleExternalStateChange(
   const SharedString & ref,
   AssetDefs::State oldState,
-  uint32 numInputsWaitingFor,
-  uint32 numChildrenWaitingFor,
-  bool graphOps = MiscConfig::Instance().GraphOperations);
+  std::uint32_t numInputsWaitingFor,
+  std::uint32_t numChildrenWaitingFor,
+  MiscConfig::GraphOpsType graphOps = MiscConfig::Instance().GraphOperations);
 
 #endif // ASSETOPERATION_H

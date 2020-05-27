@@ -1,6 +1,7 @@
 #!/usr/bin/perl -w-
 #
 # Copyright 2017 Google Inc.
+# Copyright 2020 The Open GEE Contributors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -1156,7 +1157,7 @@ sub DumpClass
         my $haveFirst = 0;
         my $curr = 1;
         my $size = @{$class->{members}};
-        print $fh $pad, $indent, "uint64 GetHeapUsage() const {\n";
+        print $fh $pad, $indent, "std::uint64_t GetHeapUsage() const {\n";
         foreach my $member (@{$class->{members}}) {
             if ($curr == $size) {
                 if ($haveFirst) {
@@ -1386,7 +1387,7 @@ sub DumpGlobalClassHelpers
         print $fh "}\n\n";
     }
     if ($RequiresGetHeapUsage) {
-        print $fh "inline uint64 GetHeapUsage(const $class->{qualname} &obj) {\n";
+        print $fh "inline std::uint64_t GetHeapUsage(const $class->{qualname} &obj) {\n";
         print $fh $indent, "return obj.GetHeapUsage();\n";
         print $fh "}\n\n";
     }
@@ -1917,14 +1918,15 @@ sub EmitEnumDOMReader
     print $fh "{\n";
     my $i = 0;
     for ($i = 0; $i < @{$enum->{enumerators}}; ++$i) {
-	my $item = $enum->{enumerators}[$i];
-	if ($i == 0) {
-	    print $fh $indent, "if (enumStr == \"$item->{name}\") {\n";
-	} else {
-	    print $fh $indent, "} else if (enumStr == \"$item->{name}\") {\n";
-	}
-	print $fh $indent, $indent, "self = $enum->{qualbase}::$item->{name};\n";
-	print $fh $indent, $indent, "return;\n";
+      my $item = $enum->{enumerators}[$i];
+      my $conditional = "enumStr == \"$item->{name}\" || enumStr == \"$item->{value}\"";
+      if ($i == 0) {
+        print $fh $indent, "if ($conditional) {\n";
+      } else {
+        print $fh $indent, "} else if ($conditional) {\n";
+      }
+      print $fh $indent, $indent, "self = $enum->{qualbase}::$item->{name};\n";
+      print $fh $indent, $indent, "return;\n";
     }
     print $fh $indent, "}\n";
     print $fh $indent, "throw khException(kh::tr(\"Invalid string '%1' for enum '%2'\").arg(enumStr).arg(\"$enum->{qualname}\"));\n";
